@@ -6,6 +6,9 @@ import os
 import random
 import joblib
 
+# Maximum number of messages to keep in conversation history
+MAX_HISTORY_LENGTH = 10
+
 telem_clf = joblib.load('Models/telemetry_classifier.joblib')
 
 # Function to generate a random battery level response
@@ -61,15 +64,21 @@ while(True):
             if category == 'altitude telemetry': 
                 response = generate_altitude()
                 print(response)
+                if len(conversation_history) > MAX_HISTORY_LENGTH:
+                    conversation_history.pop(0)
                 conversation_history.append({'role': 'assistant', 'content': response})
                 continue
             elif category == 'temperature telemetry': 
                 response = generate_temperature()
                 print(response)
+                if len(conversation_history) > MAX_HISTORY_LENGTH:
+                    conversation_history.pop(0)
                 conversation_history.append({'role': 'assistant', 'content': response})
                 continue
             elif category == 'qa':
                 # Append user input to conversation history
+                if len(conversation_history) > MAX_HISTORY_LENGTH:
+                    conversation_history.pop(0)
                 conversation_history.append({'role': 'user', 'content': prompt})
 
                 # Validar que cada mensaje en conversation_history es un diccionario con las claves necesarias
@@ -110,6 +119,8 @@ while(True):
                         break
 
                 # Append model response to conversation history
+                if len(conversation_history) > MAX_HISTORY_LENGTH:
+                    conversation_history.pop(0)
                 conversation_history.append({'role': 'assistant', 'content': response_content})
 
         print()
