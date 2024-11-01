@@ -6,37 +6,11 @@ import os
 import random
 import joblib
 
+# Maximum number of messages to keep in conversation history
+MAX_HISTORY_LENGTH = 10
+
 telem_clf = joblib.load('Models/telemetry_classifier.joblib')
 
-# Function to detect if the prompt is asking about temperature
-def detect_temperature(prompt):
-    keywords = [
-      "temperature",
-      "degrees",
-      "weather",
-      "thermometer",
-      "hot",
-      "cold",
-      "ambient"
-    ]
-    prompt = prompt.lower()
-    for keyword in keywords:
-        if keyword in prompt:
-            return True
-    return False
-
-# Function to detect if the prompt is asking about battery status
-def detect_battery(prompt):
-    battery_keywords = [
-        "battery", 
-        "level of the battery", "battery status", "battery level"
-    ]
-    prompt = prompt.lower()
-    for keyword in battery_keywords:
-        if keyword in prompt:
-            return True
-    return False
-    
 # Function to generate a random battery level response
 def generate_battery():
     return f"My battery level is {random.randint(50, 100)}%"
@@ -90,15 +64,21 @@ while(True):
             if category == 'altitude telemetry': 
                 response = generate_altitude()
                 print(response)
+                if len(conversation_history) > MAX_HISTORY_LENGTH:
+                    conversation_history.pop(0)
                 conversation_history.append({'role': 'assistant', 'content': response})
                 continue
             elif category == 'temperature telemetry': 
                 response = generate_temperature()
                 print(response)
+                if len(conversation_history) > MAX_HISTORY_LENGTH:
+                    conversation_history.pop(0)
                 conversation_history.append({'role': 'assistant', 'content': response})
                 continue
             elif category == 'qa':
                 # Append user input to conversation history
+                if len(conversation_history) > MAX_HISTORY_LENGTH:
+                    conversation_history.pop(0)
                 conversation_history.append({'role': 'user', 'content': prompt})
 
                 # Validar que cada mensaje en conversation_history es un diccionario con las claves necesarias
@@ -139,6 +119,8 @@ while(True):
                         break
 
                 # Append model response to conversation history
+                if len(conversation_history) > MAX_HISTORY_LENGTH:
+                    conversation_history.pop(0)
                 conversation_history.append({'role': 'assistant', 'content': response_content})
 
         print()
