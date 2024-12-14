@@ -34,10 +34,10 @@ while(True):
     print('Available models:')
     for model in ollama.list()['models']:
         n += 1
-        print(n, ' ', model['name'])
+        print(n, ' ', model.model)
     # Ask the user to select a model
     modeln = int(input('Select a model: ')) - 1
-    modelname = ollama.list()['models'][modeln]['name']
+    modelname = ollama.list()['models'][modeln].model
     print('Selected model:', modelname)
     iniciar = True
     chat = True

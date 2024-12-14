@@ -1,0 +1,4 @@
+ollama
+colorama
+joblib
+scikit-learn
