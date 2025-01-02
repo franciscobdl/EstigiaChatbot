@@ -1,1 +1,7 @@
-Requiere Ollama to be installed: https://ollama.com/download
+## Installation Requirement
+
+Ollama is essential for running this project. You can download it here:
+
+https://ollama.com/download
+
+
