@@ -39,6 +39,7 @@ def translate(texts, model, tokenizer, language="en"):
     src_texts = [template(text) for text in texts]
 
     # Tokeniza los textos
+    start_time = time.time()  # Start time for translation
     encoded = tokenizer(src_texts, return_tensors="pt", padding=True)
 
     # Genera la traducción
@@ -46,8 +47,10 @@ def translate(texts, model, tokenizer, language="en"):
 
     # Decodifica la salida
     translated_texts = tokenizer.batch_decode(translated, skip_special_tokens=True)
+    end_time = time.time()  # End time for translation
+    translation_time = end_time - start_time
 
-    return translated_texts
+    return translated_texts, translation_time
 
 def translation_to_en(prompt):
     # Detecta el idioma del texto
@@ -62,8 +65,10 @@ def translation_to_en(prompt):
     else:
         raise ValueError("Idioma no soportado o no detectado correctamente.")
     
-    # Traduce el texto
-    return translate([prompt], model, tokenizer)
+    # Traduce el texto y mide el tiempo
+    translated_text, translation_time = translate([prompt], model, tokenizer)
+    return translated_text[0], translation_time
+
 
 ##############################
 ### INTENT CLASSIFIER LAYER###
@@ -152,12 +157,16 @@ while(True):
                 break
             
             print('Original prompt: ', prompt)
-            prompt = translation_to_en(prompt)[0]
-            print('Translated prompt: ', prompt)
-            
+            translated_prompt, translation_time = translation_to_en(prompt)
+            print('Translated prompt: ', translated_prompt)
+            print(f"Translation took {translation_time:.4f} seconds.")
+
             # Detect if prompt matches specific telemetry and respond accordingly
-            category = telem_clf.predict([prompt])[0]
-            print(category)
+            category_start_time = time.time()  # Start time for category detection
+            category = telem_clf.predict([translated_prompt])[0]
+            category_end_time = time.time()  # End time for category detection
+            category_detection_time = category_end_time - category_start_time
+            print(f"Category detection took {category_detection_time:.4f} seconds.")
 
             if category == 'altitude telemetry': 
                 response = generate_altitude()
@@ -171,17 +180,7 @@ while(True):
                 continue
             elif category == 'qa':
                 # Append user input to conversation history
-                conversation_history.append({'role': 'user', 'content': prompt})
-
-                # Validar que cada mensaje en conversation_history es un diccionario con las claves necesarias
-                valid_messages = all(
-                    isinstance(msg, dict) and 'role' in msg and 'content' in msg and isinstance(msg['content'], str)
-                    for msg in conversation_history
-                )
-
-                if not valid_messages:
-                    print("Error: conversation_history contiene un formato no válido.")
-                    break
+                conversation_history.append({'role': 'user', 'content': translated_prompt})
 
                 # Call the model with the conversation history
                 stream = ollama.chat(
