@@ -134,12 +134,22 @@ def generate_altitude():
     return f"My altitude is {random.uniform(150, 500)}Km"
 
 
+import time
+import sys
+
 ###########################
 ### MODEL LANGUAGE LAYER###
 ###########################
 
 # Initialize conversation history
 conversation_history = []
+
+# Function to simulate typing effect (3 points)
+def typing_effect():
+    for _ in range(3):
+        print(".", end="", flush=True)
+        time.sleep(0.5)  # Espera 0.5 segundos entre cada punto
+    print()  # Salto de línea después de los puntos suspensivos
 
 # Infinite loop to keep the program running
 while(True):
@@ -185,6 +195,10 @@ while(True):
             print('Translated prompt: ', translated_prompt)
             print(f"Translation took {translation_duration:.4f} seconds.")
 
+            # Simulate typing effect while generating the response
+            print("Generating response", end="")
+            typing_effect()  # Simula los puntos suspensivos
+            
             # Measure time for category detection
             category_start_time = time.time()  # Start time for category detection
             category = telem_clf.predict([translated_prompt])[0]
@@ -224,7 +238,7 @@ while(True):
                 translation_back_duration = translation_back_end_time - translation_back_start_time
                 print(f"Translation back to original language took {translation_back_duration:.4f} seconds.")
                 
-                total_time= (translation_duration + category_detection_time + model_generation_time + translation_back_duration)
+                total_time = (translation_duration + category_detection_time + model_generation_time + translation_back_duration)
 
                 # Append model response to conversation history
                 conversation_history.append({'role': 'assistant', 'content': final_response})
@@ -233,4 +247,4 @@ while(True):
                 print("Final Response: ", final_response)
 
         print()
-        print('Total respose generation time: ', total_time)
+        print('Total response generation time: ', total_time)
