@@ -39,6 +39,7 @@ def translate(texts, model, tokenizer, language="en"):
     src_texts = [template(text) for text in texts]
 
     # Tokeniza los textos
+    start_time = time.time()  # Start time for translation
     encoded = tokenizer(src_texts, return_tensors="pt", padding=True)
 
     # Genera la traducción
@@ -46,8 +47,10 @@ def translate(texts, model, tokenizer, language="en"):
 
     # Decodifica la salida
     translated_texts = tokenizer.batch_decode(translated, skip_special_tokens=True)
+    end_time = time.time()  # End time for translation
+    translation_time = end_time - start_time
 
-    return translated_texts
+    return translated_texts, translation_time
 
 def translation_to_en(prompt):
     # Detecta el idioma del texto
@@ -62,12 +65,31 @@ def translation_to_en(prompt):
     else:
         raise ValueError("Idioma no soportado o no detectado correctamente.")
     
-    # Traduce el texto
-    return translate([prompt], model, tokenizer)
+    # Traduce el texto y mide el tiempo
+    translated_text, translation_time = translate([prompt], model, tokenizer)
+    return translated_text[0], language, translation_time
 
-##############################
+
+def translate_back_to_original_language(text, original_language):
+    # Detecta el idioma original y traduce la respuesta al idioma original
+    if original_language == Language.CATALAN:
+        model = models['en_to_cat']
+        tokenizer = tokenizers['en_tokenizer_val']
+    elif original_language == Language.SPANISH:
+        model = models['en_to_es']
+        tokenizer = tokenizers['en_tokenizer']
+    else:
+        # Si el idioma no es ni catalán ni español, lo dejamos en inglés
+        return text
+    
+    # Traducir de vuelta al idioma original
+    translated_text, translation_time = translate([text], model, tokenizer, language=original_language)
+    return translated_text
+
+
+###########################
 ### INTENT CLASSIFIER LAYER###
-##############################
+###########################
 
 telem_clf = joblib.load('Models/telemetry_classifier.joblib')
 
@@ -112,12 +134,22 @@ def generate_altitude():
     return f"My altitude is {random.uniform(150, 500)}Km"
 
 
+import time
+import sys
+
 ###########################
 ### MODEL LANGUAGE LAYER###
 ###########################
 
 # Initialize conversation history
 conversation_history = []
+
+# Function to simulate typing effect (3 points)
+def typing_effect():
+    for _ in range(3):
+        print(".", end="", flush=True)
+        time.sleep(0.5)  # Espera 0.5 segundos entre cada punto
+    print()  # Salto de línea después de los puntos suspensivos
 
 # Infinite loop to keep the program running
 while(True):
@@ -129,6 +161,7 @@ while(True):
     for model in ollama.list()['models']:
         n += 1
         print(n, ' ', model.model)
+    
     # Ask the user to select a model
     modeln = int(input('Select a model: ')) - 1
     modelname = ollama.list()['models'][modeln].model
@@ -138,7 +171,7 @@ while(True):
 
     # Inner loop to handle the chat functionality
     while(chat):
-        tiempos = []  # List to store time taken for each word/token generation
+        total_time = 0  # List to store time taken for each word/token generation
         stopGenerating = False
         if iniciar:
             # Initial prompt setup
@@ -152,12 +185,26 @@ while(True):
                 break
             
             print('Original prompt: ', prompt)
-            prompt = translation_to_en(prompt)[0]
-            print('Translated prompt: ', prompt)
+
+            # Measure time to translate the prompt
+            translation_start_time = time.time()
+            translated_prompt, original_language, translation_time = translation_to_en(prompt)
+            translation_end_time = time.time()
+            translation_duration = translation_end_time - translation_start_time
+
+            print('Translated prompt: ', translated_prompt)
+            print(f"Translation took {translation_duration:.4f} seconds.")
+
+            # Simulate typing effect while generating the response
+            print("Generating response", end="")
+            typing_effect()  # Simula los puntos suspensivos
             
-            # Detect if prompt matches specific telemetry and respond accordingly
-            category = telem_clf.predict([prompt])[0]
-            print(category)
+            # Measure time for category detection
+            category_start_time = time.time()  # Start time for category detection
+            category = telem_clf.predict([translated_prompt])[0]
+            category_end_time = time.time()  # End time for category detection
+            category_detection_time = category_end_time - category_start_time
+            print(f"Category detection took {category_detection_time:.4f} seconds.")
 
             if category == 'altitude telemetry': 
                 response = generate_altitude()
@@ -171,47 +218,33 @@ while(True):
                 continue
             elif category == 'qa':
                 # Append user input to conversation history
-                conversation_history.append({'role': 'user', 'content': prompt})
+                conversation_history.append({'role': 'user', 'content': translated_prompt})
 
-                # Validar que cada mensaje en conversation_history es un diccionario con las claves necesarias
-                valid_messages = all(
-                    isinstance(msg, dict) and 'role' in msg and 'content' in msg and isinstance(msg['content'], str)
-                    for msg in conversation_history
-                )
-
-                if not valid_messages:
-                    print("Error: conversation_history contiene un formato no válido.")
-                    break
-
-                # Call the model with the conversation history
-                stream = ollama.chat(
+                # Measure time for model response generation
+                model_start_time = time.time()  # Start time for model response generation
+                response = ollama.chat(
                     model=modelname,
                     messages=conversation_history,
-                    stream=True,
+                    stream=False,
                 )
+                model_end_time = time.time()  # End time for model response generation
+                model_generation_time = model_end_time - model_start_time
+                print(f"Model generation took {model_generation_time:.4f} seconds.")
 
-                # Record the start time for response generation
-                inicio = time.time()
-                npalabras = 0
-                response_content = ""
+                # Measure time for translation of the response
+                translation_back_start_time = time.time()  # Start time for translating the response back
+                final_response = translate_back_to_original_language(response.message.content, original_language)[0]
+                translation_back_end_time = time.time()  # End time for translating the response back
+                translation_back_duration = translation_back_end_time - translation_back_start_time
+                print(f"Translation back to original language took {translation_back_duration:.4f} seconds.")
                 
-                for chunk in stream:
-                    ahora = time.time()
-                    print(chunk['message']['content'], end='', flush=True)
-                    npalabras += 1
-                    tiempos.append(ahora - inicio)
-                    inicio = ahora
-                    response_content += chunk['message']['content']
-
-                    # Stop generating if more than 50 tokens and a sentence-ending character is found
-                    if npalabras > 50 and bool(re.findall(r"[.!?\n:#]", chunk['message']['content'])):
-                        stopGenerating = True
-                    if stopGenerating: 
-                        print(chunk['message']['content'])
-                        break
+                total_time = (translation_duration + category_detection_time + model_generation_time + translation_back_duration)
 
                 # Append model response to conversation history
-                conversation_history.append({'role': 'assistant', 'content': response_content})
+                conversation_history.append({'role': 'assistant', 'content': final_response})
+
+                # Print the final translated response to the user
+                print("Final Response: ", final_response)
 
         print()
-        print('Average word generation time: ', sum(tiempos[1:])/(len(tiempos)-1))
+        print('Total response generation time: ', total_time)
