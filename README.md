@@ -47,9 +47,18 @@ Un asistente conversacional ultraligero y multilingüe diseñado para ejecutarse
    *Nota: La versión optimizada para Raspberry Pi (`ollama_launch_2_1.py`) no requiere cargar pesados modelos de traducción en memoria.*
 
 4. **Descargar el modelo en Ollama:**
-   Asegúrate de tener un modelo compatible descargado (por ejemplo, `qwen2.5` o tu modelo GGUF personalizado de Estigia):
+
+   Instalar Ollama:
+
+    Linux / Raspberry Pi: Ejecuta curl -fsSL https://ollama.com/install.sh | sh
+
+    Windows / macOS: Descarga el instalador desde ollama.com.
+
+   Descargar el modelo Estigia2:
+      Una vez instalado Ollama, descarga el modelo optimizado para este proyecto ejecutando:
+
    ```bash
-   ollama pull qwen2.5:0.5b
+   ollama pull franciscobdl/Estigia2
    ```
 
 ---
@@ -72,7 +81,7 @@ Durante la ejecución, el usuario puede usar los siguientes comandos especiales:
 --- STARTING ESTIGIA SYSTEMS ON RASPBERRY PI ---
 ⚙️ Loading telemetry classifier (joblib)...
 ✅ Telemetry loaded in 0.05 seconds.
-🧠 Waking up model 'qwen2.5' in Ollama...
+🧠 Waking up model 'franciscobdl/Estigia2' in Ollama...
 ✅ Model loaded and ready in 1.20 seconds.
 
 Select communication language:
