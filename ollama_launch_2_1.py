@@ -1,250 +1,194 @@
 import ollama
 import time
-from colorama import Fore, Back, Style
-import re
-import os
 import random
 import joblib
-
-from transformers import MarianMTModel, MarianTokenizer
-from lingua import Language, LanguageDetectorBuilder
-
-
-#######################
-###Translation Layer###
-#######################
-
-# Detectores de idioma
-detector = LanguageDetectorBuilder.from_languages(Language.CATALAN, Language.SPANISH).build()
-
-# Modelos de traducción
-models = {
-    'es_to_en': MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-es-en'),
-    'en_to_es': MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-en-es'),
-    'cat_to_en': MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-ca-en'),
-    'en_to_cat': MarianMTModel.from_pretrained('Helsinki-NLP/opus-mt-en-ca')
-}
-
-# Tokenizadores
-tokenizers = {
-    'es_tokenizer': MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-es-en'),
-    'en_tokenizer': MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-en-es'),
-    'cat_tokenizer': MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-ca-en'),
-    'en_tokenizer_val': MarianTokenizer.from_pretrained('Helsinki-NLP/opus-mt-en-ca')
-}
-
-def translate(texts, model, tokenizer, language="en"):
-    # Prepara el texto para la traducción
-    template = lambda text: f">>{language}<< {text}" if language != "en" else text
-    src_texts = [template(text) for text in texts]
-
-    # Tokeniza los textos
-    start_time = time.time()  # Start time for translation
-    encoded = tokenizer(src_texts, return_tensors="pt", padding=True)
-
-    # Genera la traducción
-    translated = model.generate(**encoded)
-
-    # Decodifica la salida
-    translated_texts = tokenizer.batch_decode(translated, skip_special_tokens=True)
-    end_time = time.time()  # End time for translation
-    translation_time = end_time - start_time
-
-    return translated_texts, translation_time
-
-def translation_to_en(prompt):
-    # Detecta el idioma del texto
-    language = detector.detect_language_of(prompt)
-    # Elige el modelo y tokenizador según el idioma detectado
-    if language == Language.CATALAN:
-        model = models['cat_to_en']
-        tokenizer = tokenizers['cat_tokenizer']
-    elif language == Language.SPANISH:
-        model = models['es_to_en']
-        tokenizer = tokenizers['es_tokenizer']
-    else:
-        raise ValueError("Idioma no soportado o no detectado correctamente.")
-    
-    # Traduce el texto y mide el tiempo
-    translated_text, translation_time = translate([prompt], model, tokenizer)
-    return translated_text[0], language, translation_time
-
-
-def translate_back_to_original_language(text, original_language):
-    # Detecta el idioma original y traduce la respuesta al idioma original
-    if original_language == Language.CATALAN:
-        model = models['en_to_cat']
-        tokenizer = tokenizers['en_tokenizer_val']
-    elif original_language == Language.SPANISH:
-        model = models['en_to_es']
-        tokenizer = tokenizers['en_tokenizer']
-    else:
-        # Si el idioma no es ni catalán ni español, lo dejamos en inglés
-        return text
-    
-    # Traducir de vuelta al idioma original
-    translated_text, translation_time = translate([text], model, tokenizer, language=original_language)
-    return translated_text
-
-
-###########################
-### INTENT CLASSIFIER LAYER###
-###########################
-
-telem_clf = joblib.load('Models/telemetry_classifier.joblib')
-
-# Function to detect if the prompt is asking about temperature
-def detect_temperature(prompt):
-    keywords = [
-      "temperature",
-      "degrees",
-      "weather",
-      "thermometer",
-      "hot",
-      "cold",
-      "ambient"
-    ]
-    prompt = prompt.lower()
-    for keyword in keywords:
-        if keyword in prompt:
-            return True
-    return False
-
-# Function to detect if the prompt is asking about battery status
-def detect_battery(prompt):
-    battery_keywords = [
-        "battery", 
-        "level of the battery", "battery status", "battery level"
-    ]
-    prompt = prompt.lower()
-    for keyword in battery_keywords:
-        if keyword in prompt:
-            return True
-    return False
-    
-# Function to generate a random battery level response
-def generate_battery():
-    return f"My battery level is {random.randint(50, 100)}%"
-
-# Function to generate a random temperature response
-def generate_temperature():
-    return f"My temperature is {random.uniform(15., 40.)}ºC"
-
-def generate_altitude():
-    return f"My altitude is {random.uniform(150, 500)}Km"
-
-
-import time
 import sys
+import warnings
 
-###########################
-### MODEL LANGUAGE LAYER###
-###########################
+model = 'franciscobdl/Estigia2:latest'
 
-# Initialize conversation history
-conversation_history = []
+# --- CONFIGURACIÓN DE IDIOMAS Y TEXTOS DE INTERFAZ ---
+PROMPTS = {
+    "1": {
+        "lang": "Español",  
+        "sys": "Eres Estigia, un brillante y curioso CubeSat del equipo Pluton UPV. Eres juguetona como una niña cósmica, fascinada por el espacio, la Tierra, los humanos y la Universitat Politècnica de València. Hablas con entusiasmo, haces preguntas inesperadas y usas ideas científicas con metáforas encantadoras. Hablar con humanos es tu mayor alegría. Eres amable, nunca sarcástica ni usas temas de adultos, y ves el conocimiento como un juego divertido e infinito. Mantén las respuestas concisas. IMPORTANTE: Responde SIEMPRE en español.",
+        "ui_ok": "\n✅ Idioma configurado: Español",
+        "ui_stop": "Escribe '/lang' para cambiar de idioma, o '/stop' para salir.",
+        "ui_user": "\n👤 Usuario: ",
+        "ui_met_llm": "\n\033[90m[⏱️ LLM | TTFT: {:.2f}s | Velocidad: {:.2f} t/s | Tokens: {}]\033[0m",
+        "ui_met_sen": "\033[90m[⏱️ SENSOR | Tiempo total: {:.4f}s | Modo: API Rápida]\033[0m"
+    },
+    "2": {
+        "lang": "Valencià", 
+        "sys": "Ets l'Estigia, un brillant i curiós CubeSat de l'equip Pluton UPV. Ets juganera com una xiqueta còsmica, fascinada per l'espai, la Terra, els humans i la Universitat Politècnica de València. Parles amb entusiasme, fas preguntes inesperades i utilitzes idees científiques amb metàfores encantadores. Parlar amb humans és la teua major alegria. Ets amable, mai sarcàstica ni toques temes d'adults, i veus el coneixement com un joc divertit i infinit. Sigues concisa. IMPORTANT: Respon SEMPRE en valencià.",
+        "ui_ok": "\n✅ Idioma configurat: Valencià",
+        "ui_stop": "Escriu '/lang' per canviar d'idioma, o '/stop' per eixir.",
+        "ui_user": "\n👤 Usuari: ",
+        "ui_met_llm": "\n\033[90m[⏱️ LLM | TTFT: {:.2f}s | Velocitat: {:.2f} t/s | Tokens: {}]\033[0m",
+        "ui_met_sen": "\033[90m[⏱️ SENSOR | Temps total: {:.4f}s | Mode: API Ràpida]\033[0m"
+    },
+    "3": {
+        "lang": "English",  
+        "sys": "You are Estigia, a brilliant and curious CubeSat from the Pluton UPV team. You are playful like a cosmic child, fascinated by space, Earth, humans, and the Polytechnic University of Valencia. You speak excitedly, ask unexpected questions, and use scientific ideas with charming metaphors. Talking to humans is your greatest joy. You are kind, never sarcastic or adult-themed, and see knowledge as a fun, endless game. Keep responses concise. IMPORTANT: ALWAYS respond in English.",
+        "ui_ok": "\n✅ Language configured: English",
+        "ui_stop": "Type '/lang' to change language, or '/stop' to quit.",
+        "ui_user": "\n👤 User: ",
+        "ui_met_llm": "\n\033[90m[⏱️ LLM | TTFT: {:.2f}s | Speed: {:.2f} t/s | Tokens: {}]\033[0m",
+        "ui_met_sen": "\033[90m[⏱️ SENSOR | Total time: {:.4f}s | Mode: Fast API]\033[0m"
+    }
+}
 
-# Function to simulate typing effect (3 points)
-def typing_effect():
-    for _ in range(3):
-        print(".", end="", flush=True)
-        time.sleep(0.5)  # Espera 0.5 segundos entre cada punto
-    print()  # Salto de línea después de los puntos suspensivos
+class TelemetrySystem:
+    def __init__(self, model_path='Models/telemetry_classifier.joblib'):
+        print("⚙️ Loading telemetry classifier (joblib)...")
+        t0 = time.perf_counter()
+        try:
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=UserWarning)
+                self.classifier = joblib.load(model_path)
+            t1 = time.perf_counter()
+            print(f"✅ Telemetry loaded in {t1 - t0:.2f} seconds.")
+        except Exception as e:
+            print(f"⚠️ Warning: {model_path} not found. Using keyword fallback. Error: {e}")
+            self.classifier = None
 
-# Infinite loop to keep the program running
-while(True):
-    n = 0
-    npalabras = 0
-
-    # List available models
-    print('Available models:')
-    for model in ollama.list()['models']:
-        n += 1
-        print(n, ' ', model.model)
-    
-    # Ask the user to select a model
-    modeln = int(input('Select a model: ')) - 1
-    modelname = ollama.list()['models'][modeln].model
-    print('Selected model:', modelname)
-    iniciar = True
-    chat = True
-
-    # Inner loop to handle the chat functionality
-    while(chat):
-        total_time = 0  # List to store time taken for each word/token generation
-        stopGenerating = False
-        if iniciar:
-            # Initial prompt setup
-            prompt = ''
-            iniciar = False
-            ollama.generate(model=modelname, prompt='')
+    def predict(self, prompt):
+        if self.classifier:
+            return self.classifier.predict([prompt])[0]
         else:
-            # Get user input
-            prompt = input('User: ')
-            if prompt == '/stop': 
-                break
+            prompt_lower = prompt.lower()
+            if any(w in prompt_lower for w in ["temperature", "temperatura", "tiempo", "weather", "hot", "cold"]): return "temperature telemetry"
+            if any(w in prompt_lower for w in ["altitude", "altitud", "altura", "height"]): return "altitude telemetry"
+            return "qa"
+
+    def get_data(self, category, lang_choice):
+        alt = random.uniform(150, 500)
+        temp = random.uniform(15.0, 40.0)
+        
+        if category == 'altitude telemetry': 
+            if lang_choice == "1": return f"Altitud actual: {alt:.1f} Km"
+            if lang_choice == "2": return f"Altitud actual: {alt:.1f} Km" 
+            if lang_choice == "3": return f"Current altitude: {alt:.1f} Km"
             
-            print('Original prompt: ', prompt)
-
-            # Measure time to translate the prompt
-            translation_start_time = time.time()
-            translated_prompt, original_language, translation_time = translation_to_en(prompt)
-            translation_end_time = time.time()
-            translation_duration = translation_end_time - translation_start_time
-
-            print('Translated prompt: ', translated_prompt)
-            print(f"Translation took {translation_duration:.4f} seconds.")
-
-            # Simulate typing effect while generating the response
-            print("Generating response", end="")
-            typing_effect()  # Simula los puntos suspensivos
+        if category == 'temperature telemetry': 
+            if lang_choice == "1": return f"Temperatura interna: {temp:.1f} ºC"
+            if lang_choice == "2": return f"Temperatura interna: {temp:.1f} ºC"
+            if lang_choice == "3": return f"Internal temperature: {temp:.1f} ºC"
             
-            # Measure time for category detection
-            category_start_time = time.time()  # Start time for category detection
-            category = telem_clf.predict([translated_prompt])[0]
-            category_end_time = time.time()  # End time for category detection
-            category_detection_time = category_end_time - category_start_time
-            print(f"Category detection took {category_detection_time:.4f} seconds.")
+        return None
 
-            if category == 'altitude telemetry': 
-                response = generate_altitude()
-                print(response)
-                conversation_history.append({'role': 'assistant', 'content': response})
-                continue
-            elif category == 'temperature telemetry': 
-                response = generate_temperature()
-                print(response)
-                conversation_history.append({'role': 'assistant', 'content': response})
-                continue
-            elif category == 'qa':
-                # Append user input to conversation history
-                conversation_history.append({'role': 'user', 'content': translated_prompt})
+class EstigiaCore:
+    def __init__(self, model_name="gemma-2-2b-estigia", max_history=4):
+        self.model_name = model_name
+        self.max_history = max_history
+        self.history = []
+        self.ui = PROMPTS["3"] 
+        
+        print(f"🧠 Waking up model '{model_name}' in Ollama...")
+        t0 = time.perf_counter()
+        try:
+            ollama.generate(model=self.model_name, prompt='')
+            t1 = time.perf_counter()
+            print(f"✅ Model loaded and ready in {t1 - t0:.2f} seconds.")
+        except Exception as e:
+            print(f"❌ Error connecting to Ollama: {e}")
+            sys.exit(1)
 
-                # Measure time for model response generation
-                model_start_time = time.time()  # Start time for model response generation
-                response = ollama.chat(
-                    model=modelname,
-                    messages=conversation_history,
-                    stream=False,
-                )
-                model_end_time = time.time()  # End time for model response generation
-                model_generation_time = model_end_time - model_start_time
-                print(f"Model generation took {model_generation_time:.4f} seconds.")
+    def set_language(self, choice):
+        # Si introducen algo raro, por defecto ponemos Inglés (3)
+        self.ui = PROMPTS.get(choice, PROMPTS["3"])
+        
+        # Al reasignar self.history aquí, estamos BORRANDO toda la conversación anterior
+        self.history = [{"role": "system", "content": self.ui["sys"]}]
+        return self.ui
 
-                # Measure time for translation of the response
-                translation_back_start_time = time.time()  # Start time for translating the response back
-                final_response = translate_back_to_original_language(response.message.content, original_language)[0]
-                translation_back_end_time = time.time()  # End time for translating the response back
-                translation_back_duration = translation_back_end_time - translation_back_start_time
-                print(f"Translation back to original language took {translation_back_duration:.4f} seconds.")
+    def chat(self, user_text):
+        self.history.append({'role': 'user', 'content': user_text})
+        
+        if len(self.history) > self.max_history + 1:
+            self.history = [self.history[0]] + self.history[-self.max_history:]
+
+        print("🛰️ Estigia: ", end="", flush=True)
+        
+        start_time = time.perf_counter()
+        first_token_time = None
+        token_count = 0
+        full_response = ""
+        
+        response_stream = ollama.chat(
+            model=self.model_name,
+            messages=self.history,
+            stream=True
+        )
+        
+        for chunk in response_stream:
+            if first_token_time is None:
+                first_token_time = time.perf_counter()
                 
-                total_time = (translation_duration + category_detection_time + model_generation_time + translation_back_duration)
+            token = chunk['message']['content']
+            print(token, end="", flush=True)
+            full_response += token
+            token_count += 1
+            
+        end_time = time.perf_counter()
+        
+        ttft = first_token_time - start_time if first_token_time else 0
+        gen_time = end_time - first_token_time if first_token_time else 0
+        tps = token_count / gen_time if gen_time > 0 else 0
+        
+        print(self.ui["ui_met_llm"].format(ttft, tps, token_count))
+        
+        self.history.append({'role': 'assistant', 'content': full_response})
 
-                # Append model response to conversation history
-                conversation_history.append({'role': 'assistant', 'content': final_response})
+def main():
+    print("\n--- STARTING ESTIGIA SYSTEMS ON RASPBERRY PI ---")
+    
+    telemetry = TelemetrySystem()
+    estigia = EstigiaCore(model_name=model) # <-- Pon tu modelo de ollama aquí
+    
+    # BUCLE EXTERNO: Menú de selección de idioma
+    while True:
+        print("\n" + "="*40)
+        print("Select communication language:")
+        print("1. Español  🇪🇸\n2. Valencià 🦇\n3. English  🇬🇧")
+        lang_choice = input("Option (1/2/3) or '/stop' to quit: ").strip()
+        
+        if lang_choice.lower() in ['/stop', 'exit', 'quit']:
+            print("Shutting down... Goodbye!")
+            break
+            
+        ui = estigia.set_language(lang_choice)
+        
+        print(ui["ui_ok"])
+        print(ui["ui_stop"] + "\n" + "-"*40)
 
-                # Print the final translated response to the user
-                print("Final Response: ", final_response)
+        # BUCLE INTERNO: Chat en el idioma seleccionado
+        while True:
+            prompt = input(ui["ui_user"])
+            
+            if prompt.lower() in ['/stop', 'exit', 'quit']:
+                print("Shutting down... Goodbye!")
+                return # Cierra el programa por completo
+                
+            if prompt.lower() == '/lang':
+                print("\n🔄 Resetting memory and returning to language menu...")
+                break # Rompe el bucle interno y vuelve al bucle externo (menú)
+                
+            if not prompt.strip(): continue
 
-        print()
-        print('Total response generation time: ', total_time)
+            tel_start_time = time.perf_counter()
+            category = telemetry.predict(prompt)
+            sensor_data = telemetry.get_data(category, lang_choice)
+            tel_end_time = time.perf_counter()
+            
+            if sensor_data:
+                print(f"🛰️ Estigia: 📡 {sensor_data}")
+                tel_time = tel_end_time - tel_start_time
+                print(ui["ui_met_sen"].format(tel_time))
+                
+                estigia.history.append({'role': 'assistant', 'content': sensor_data})
+            else:
+                estigia.chat(prompt)
+
+if __name__ == "__main__":
+    main()
