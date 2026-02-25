@@ -5,6 +5,8 @@ import joblib
 import sys
 import warnings
 
+model = 'franciscobdl/Estigia2:latest'
+
 # --- CONFIGURACIÓN DE IDIOMAS Y TEXTOS DE INTERFAZ ---
 PROMPTS = {
     "1": {
@@ -142,7 +144,7 @@ def main():
     print("\n--- STARTING ESTIGIA SYSTEMS ON RASPBERRY PI ---")
     
     telemetry = TelemetrySystem()
-    estigia = EstigiaCore(model_name="qwen_estigia:latest") # <-- Pon tu modelo de ollama aquí
+    estigia = EstigiaCore(model_name=model) # <-- Pon tu modelo de ollama aquí
     
     # BUCLE EXTERNO: Menú de selección de idioma
     while True:
