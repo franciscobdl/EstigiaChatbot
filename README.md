@@ -5,7 +5,7 @@
 ![Scikit-Learn](https://img.shields.io/badge/Scikit--Learn-Telemetry-orange.svg)
 ![Hardware](https://img.shields.io/badge/Hardware-Raspberry_Pi-c51a4a.svg)
 
-Un asistente conversacional ultraligero y multilingüe diseñado para ejecutarse localmente en una **Raspberry Pi** sin conexión a internet. Este proyecto da voz a **Estigia**, un satélite (CubeSat) del equipo [Pluton UPV](https://plutonupv.com/), combinando la potencia de Modelos de Lenguaje Grandes (LLMs) cuantizados con un clasificador de Machine Learning ultrarrápido para telemetría.
+Un asistente conversacional ultraligero y multilingüe diseñado para ejecutarse localmente en una **Raspberry Pi** sin conexión a internet. Este proyecto da voz a **Estigia**, un satélite (CubeSat) del equipo Pluton UPV, combinando la potencia de Modelos de Lenguaje Grandes (LLMs) cuantizados con un clasificador de Machine Learning ultrarrápido para telemetría.
 
 ## ✨ Características Principales
 
@@ -29,7 +29,7 @@ Un asistente conversacional ultraligero y multilingüe diseñado para ejecutarse
 
 1. **Clonar el repositorio:**
    ```bash
-   git clone [https://github.com/tu-usuario/EstigiaChatbot.git](https://github.com/tu-usuario/EstigiaChatbot.git)
+   git clone https://github.com/franciscobdl/EstigiaChatbot.git
    cd EstigiaChatbot
    ```
 
@@ -48,14 +48,17 @@ Un asistente conversacional ultraligero y multilingüe diseñado para ejecutarse
 
 4. **Descargar el modelo en Ollama:**
 
-   Instalar Ollama:
+   4.1. **Instalar Ollama**:
 
-    Linux / Raspberry Pi: Ejecuta curl -fsSL https://ollama.com/install.sh | sh
+    Linux / Raspberry Pi: 
+        
+        curl -fsSL https://ollama.com/install.sh | sh
 
-    Windows / macOS: Descarga el instalador desde ollama.com.
+    Windows / macOS: Descarga el instalador desde [ollama.com](https://ollama.com/).
 
-   Descargar el modelo Estigia2:
-      Una vez instalado Ollama, descarga el modelo optimizado para este proyecto ejecutando:
+   4.2. **Descargar el modelo de Estigia**:
+   
+   Una vez instalado Ollama, descarga el modelo optimizado para este proyecto ejecutando:
 
    ```bash
    ollama pull franciscobdl/Estigia2
