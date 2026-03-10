@@ -56,9 +56,6 @@ class TelemetrySystem:
         if self.classifier:
             return self.classifier.predict([prompt])[0]
         else:
-            prompt_lower = prompt.lower()
-            if any(w in prompt_lower for w in ["temperature", "temperatura", "tiempo", "weather", "hot", "cold"]): return "temperature telemetry"
-            if any(w in prompt_lower for w in ["altitude", "altitud", "altura", "height"]): return "altitude telemetry"
             return "qa"
 
     def get_data(self, category, lang_choice):
@@ -114,28 +111,29 @@ class EstigiaCore:
         first_token_time = None
         token_count = 0
         full_response = ""
-        
-        response_stream = ollama.chat(
+
+        response = ollama.chat(
             model=self.model_name,
             messages=self.history,
-            stream=True
-        )
+            stream=False)
         
-        for chunk in response_stream:
-            if first_token_time is None:
-                first_token_time = time.perf_counter()
-                
-            token = chunk['message']['content']
-            print(token, end="", flush=True)
-            full_response += token
-            token_count += 1
+        print(response['message']['content'])
             
-        end_time = time.perf_counter()
+        # end_time = time.perf_counter()
         
-        ttft = first_token_time - start_time if first_token_time else 0
-        gen_time = end_time - first_token_time if first_token_time else 0
+        # TTFT (Time To First Token) -> Tiempo de evaluación del prompt
+        ttft = response.get('prompt_eval_duration', 0) / 1e9
+        
+        # Tokens generados
+        token_count = response.get('eval_count', 0)
+        
+        # Tiempo de generación puro
+        gen_time = response.get('eval_duration', 0) / 1e9
+        
+        # Tokens por segundo (t/s)
         tps = token_count / gen_time if gen_time > 0 else 0
-        
+
+        # Imprimir métricas
         print(self.ui["ui_met_llm"].format(ttft, tps, token_count))
         
         self.history.append({'role': 'assistant', 'content': full_response})
