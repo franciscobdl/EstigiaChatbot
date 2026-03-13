@@ -56,9 +56,6 @@ class TelemetrySystem:
         if self.classifier:
             return self.classifier.predict([prompt])[0]
         else:
-            prompt_lower = prompt.lower()
-            if any(w in prompt_lower for w in ["temperature", "temperatura", "tiempo", "weather", "hot", "cold"]): return "temperature telemetry"
-            if any(w in prompt_lower for w in ["altitude", "altitud", "altura", "height"]): return "altitude telemetry"
             return "qa"
 
     def get_data(self, category, lang_choice):
