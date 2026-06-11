@@ -38,8 +38,14 @@ PROMPTS = {
     }
 }
 
+import time
+import random
+import warnings
+import joblib
+
+
 class TelemetrySystem:
-    def __init__(self, model_path='Models/telemetry_classifier.joblib'):
+    def __init__(self, model_path='Models/modelo-PLUTON_UPV_svm.joblib'):
         print("⚙️ Loading telemetry classifier (joblib)...")
         t0 = time.perf_counter()
         try:
@@ -48,30 +54,172 @@ class TelemetrySystem:
                 self.classifier = joblib.load(model_path)
             t1 = time.perf_counter()
             print(f"✅ Telemetry loaded in {t1 - t0:.2f} seconds.")
+            try:
+                print("📊 Classes in model:", self.classifier.classes_)
+            except Exception:
+                pass
         except Exception as e:
             print(f"⚠️ Warning: {model_path} not found. Using keyword fallback. Error: {e}")
             self.classifier = None
+    def predict(self, prompt: str) -> str:
+        if self.classifier is not None:
 
-    def predict(self, prompt):
-        if self.classifier:
             return self.classifier.predict([prompt])[0]
-        else:
-            return "qa"
-
-    def get_data(self, category, lang_choice):
-        alt = random.uniform(150, 500)
-        temp = random.uniform(15.0, 40.0)
         
-        if category == 'altitude telemetry': 
-            if lang_choice == "1": return f"Altitud actual: {alt:.1f} Km"
-            if lang_choice == "2": return f"Altitud actual: {alt:.1f} Km" 
-            if lang_choice == "3": return f"Current altitude: {alt:.1f} Km"
-            
-        if category == 'temperature telemetry': 
-            if lang_choice == "1": return f"Temperatura interna: {temp:.1f} ºC"
-            if lang_choice == "2": return f"Temperatura interna: {temp:.1f} ºC"
-            if lang_choice == "3": return f"Internal temperature: {temp:.1f} ºC"
-            
+        p = prompt.lower()
+
+        # GET_TEMP
+        if any(w in p for w in [
+            "temperature", "temp", "temperatura", "heat", "hot", "cold", "warm", "ºc", "°c"
+        ]):
+            return "GET_TEMP"
+
+        # TRISKEL_GET_CURRENT
+        if any(w in p for w in [
+            "current", "amperage", "amps", "ampere", "consumption", "consumo", "milliamp", "ma"
+        ]):
+            return "TRISKEL_GET_CURRENT"
+
+        # ORBIT_GET_ALT
+        if any(w in p for w in [
+            "altitude", "altitud", "height", "orbital height",
+            "semi-major axis", "semi major axis", "sma"
+        ]):
+            return "ORBIT_GET_ALT"
+
+        # ORBIT_GET_ECCENTRICITY
+        if any(w in p for w in [
+            "eccentricity", "excentricidad", "ecc", "e="
+        ]):
+            return "ORBIT_GET_ECCENTRICITY"
+
+        # ORBIT_GET_INCLINATION
+        if any(w in p for w in [
+            "inclination", "inclinación", "tilt", "inclination angle", "i="
+        ]):
+            return "ORBIT_GET_INCLINATION"
+
+        # ORBIT_GET_RAAN
+        if any(w in p for w in [
+            "raan", "right ascension", "ascending node", "right ascension of the ascending node"
+        ]):
+            return "ORBIT_GET_RAAN"
+
+        # ORBIT_GET_PERIGEE
+        if any(w in p for w in [
+            "perigee", "perigeo", "argument of perigee", "omega", "ω="
+        ]):
+            return "ORBIT_GET_PERIGEE"
+
+        # ORBIT_GET_TRUE_ANOMALY
+        if any(w in p for w in [
+            "true anomaly", "anomalía verdadera", "ν=", "nu="
+        ]):
+            return "ORBIT_GET_TRUE_ANOMALY"
+
+        # ORBIT_GET_MEAN_ANOMALY
+        if any(w in p for w in [
+            "mean anomaly", "anomalía media", "m="
+        ]):
+            return "ORBIT_GET_MEAN_ANOMALY"
+
+        # Default
+        return "GENERAL_CHAT"
+
+    def get_data(self, category: str, lang_choice: str) -> str | None:
+
+        alt = random.uniform(400, 600)           # km
+        temp = random.uniform(15.0, 40.0)        # ºC
+        ecc = random.uniform(0.0005, 0.01)
+        inc = random.uniform(97.3, 97.7)         # deg
+        raan = random.uniform(0, 360)            # deg
+        perigee = random.uniform(0, 360)         # deg (arg of perigee)
+        true_anom = random.uniform(0, 360)       # deg
+        mean_anom = random.uniform(0, 360)       # deg
+        current = random.uniform(0.5, 1.5)       # A
+
+        # GET_TEMP
+        if category == "GET_TEMP":
+            if lang_choice == "1":
+                return f"Temperatura interna actual del satélite: {temp:.1f} ºC."
+            if lang_choice == "2":
+                return f"Temperatura interna actual del satèl·lit: {temp:.1f} ºC."
+            if lang_choice == "3":
+                return f"Current internal satellite temperature: {temp:.1f} ºC."
+
+        # TRISKEL_GET_CURRENT
+        if category == "TRISKEL_GET_CURRENT":
+            if lang_choice == "1":
+                return f"Corriente consumida por el OBC TRISKEL: {current:.2f} A."
+            if lang_choice == "2":
+                return f"Corrent consumida per l'OBC TRISKEL: {current:.2f} A."
+            if lang_choice == "3":
+                return f"Current drawn by the TRISKEL OBC: {current:.2f} A."
+
+        # ORBIT_GET_ALT
+        if category == "ORBIT_GET_ALT":
+            if lang_choice == "1":
+                return f"Altitud orbital actual: {alt:.1f} km sobre la superficie terrestre."
+            if lang_choice == "2":
+                return f"Altitud orbital actual: {alt:.1f} km sobre la superfície terrestre."
+            if lang_choice == "3":
+                return f"Current orbital altitude: {alt:.1f} km above Earth's surface."
+
+        # ORBIT_GET_ECCENTRICITY
+        if category == "ORBIT_GET_ECCENTRICITY":
+            if lang_choice == "1":
+                return f"Eccentricidad orbital actual: {ecc:.4f} (0 circular, 1 muy elíptica)."
+            if lang_choice == "2":
+                return f"Excentricitat orbital actual: {ecc:.4f} (0 circular, 1 molt el·líptica)."
+            if lang_choice == "3":
+                return f"Current orbital eccentricity: {ecc:.4f} (0 circular, 1 highly elliptical)."
+
+        # ORBIT_GET_INCLINATION
+        if category == "ORBIT_GET_INCLINATION":
+            if lang_choice == "1":
+                return f"Inclinación orbital: {inc:.2f} grados respecto al ecuador."
+            if lang_choice == "2":
+                return f"Inclinació orbital: {inc:.2f} graus respecte a l'equador."
+            if lang_choice == "3":
+                return f"Orbital inclination: {inc:.2f} degrees relative to the equator."
+
+        # ORBIT_GET_RAAN
+        if category == "ORBIT_GET_RAAN":
+            if lang_choice == "1":
+                return f"RAAN (Ascensión Recta del Nodo Ascendente): {raan:.2f}°."
+            if lang_choice == "2":
+                return f"RAAN (Ascensió Recta del Node Ascendent): {raan:.2f}°."
+            if lang_choice == "3":
+                return f"Right Ascension of the Ascending Node (RAAN): {raan:.2f}°."
+
+        # ORBIT_GET_PERIGEE
+        if category == "ORBIT_GET_PERIGEE":
+            if lang_choice == "1":
+                return f"Argumento de perigeo: {perigee:.2f}°."
+            if lang_choice == "2":
+                return f"Argument de perigeu: {perigee:.2f}°."
+            if lang_choice == "3":
+                return f"Argument of perigee: {perigee:.2f}°."
+
+        # ORBIT_GET_TRUE_ANOMALY
+        if category == "ORBIT_GET_TRUE_ANOMALY":
+            if lang_choice == "1":
+                return f"Anomalía verdadera actual del satélite: {true_anom:.2f}°."
+            if lang_choice == "2":
+                return f"Anomalia verdadera actual del satèl·lit: {true_anom:.2f}°."
+            if lang_choice == "3":
+                return f"Current true anomaly of the satellite: {true_anom:.2f}°."
+
+        # ORBIT_GET_MEAN_ANOMALY
+        if category == "ORBIT_GET_MEAN_ANOMALY":
+            if lang_choice == "1":
+                return f"Anomalía media actual utilizada en los cálculos orbitales: {mean_anom:.2f}°."
+            if lang_choice == "2":
+                return f"Anomalia mitjana actual utilitzada en els càlculs orbitals: {mean_anom:.2f}°."
+            if lang_choice == "3":
+                return f"Current mean anomaly used for orbital calculations: {mean_anom:.2f}°."
+
+        # Si no es una intent de telemetría conocida
         return None
 
 class EstigiaCore:
