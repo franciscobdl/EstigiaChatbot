@@ -1,3 +1,5 @@
+from litellm import telemetry
+
 import ollama
 import time
 import random
@@ -45,25 +47,38 @@ import joblib
 
 
 class TelemetrySystem:
-    def __init__(self, model_path='Models/modelo-PLUTON_UPV_svm.joblib'):
-        print("⚙️ Loading telemetry classifier (joblib)...")
+    def __init__(self):
+        self.classifier = None
+        self.current_model_path = None
+
+    def load_model(self, model_path: str):
+        # Si el modelo ya es el que está cargado, no hacemos nada para ahorrar tiempo
+        if self.current_model_path == model_path:
+            return
+
+        print(f"\n⚙️ Cargando clasificador de telemetría ({model_path})...")
         t0 = time.perf_counter()
         try:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", category=UserWarning)
-                self.classifier = joblib.load(model_path)
+                data = joblib.load(model_path)
+                self.classifier = data['pipeline']
             t1 = time.perf_counter()
-            print(f"✅ Telemetry loaded in {t1 - t0:.2f} seconds.")
+            print(f"✅ Telemetría cargada en {t1 - t0:.2f} segundos.")
+            
+            self.current_model_path = model_path
+            
             try:
-                print("📊 Classes in model:", self.classifier.classes_)
+                print("📊 Clases en el modelo:", self.classifier.classes_)
             except Exception:
                 pass
         except Exception as e:
-            print(f"⚠️ Warning: {model_path} not found. Using keyword fallback. Error: {e}")
+            print(f"⚠️ Aviso: {model_path} no encontrado. Usando fallback de palabras clave. Error: {e}")
             self.classifier = None
+    
     def predict(self, prompt: str) -> str:
         if self.classifier is not None:
-
+            print(self.classifier.predict([prompt])[0])
             return self.classifier.predict([prompt])[0]
         
         p = prompt.lower()
@@ -137,6 +152,8 @@ class TelemetrySystem:
         true_anom = random.uniform(0, 360)       # deg
         mean_anom = random.uniform(0, 360)       # deg
         current = random.uniform(0.5, 1.5)       # A
+        dod = random.uniform(20.0, 80.0)         # %
+        soc = random.uniform(20.0, 80.0)         # %
 
         # GET_TEMP
         if category == "GET_TEMP":
@@ -219,6 +236,24 @@ class TelemetrySystem:
             if lang_choice == "3":
                 return f"Current mean anomaly used for orbital calculations: {mean_anom:.2f}°."
 
+        # POWER_GET_DOD
+        if category == "POWER_GET_DOD":
+            if lang_choice == "1":
+                return f"Profundidad de descarga actual (DoD): {dod:.1f}%."
+            if lang_choice == "2":
+                return f"Profunditat de descàrrega actual (DoD): {dod:.1f}%."
+            if lang_choice == "3":
+                return f"Current depth of discharge (DoD): {dod:.1f}%."
+
+        # POWER_GET_SOC
+        if category == "POWER_GET_SOC":
+            if lang_choice == "1":
+                return f"Nivel de carga de la batería (SoC): {soc:.1f}%."
+            if lang_choice == "2":
+                return f"Nivell de càrrega de la bateria (SoC): {soc:.1f}%."
+            if lang_choice == "3":
+                return f"Current battery state of charge (SoC): {soc:.1f}%."
+
         # Si no es una intent de telemetría conocida
         return None
 
@@ -287,6 +322,12 @@ class EstigiaCore:
 
 def main():
     print("\n--- STARTING ESTIGIA SYSTEMS ON RASPBERRY PI ---")
+
+    MODEL_PATHS = {
+        "1": "Models/modelo-PLUTON_UPV_es_svm.joblib",  # Español
+        "2": "Models/modelo-PLUTON_UPV_ca_svm.joblib",  # Valencià
+        "3": "Models/modelo-PLUTON_UPV_en_svm.joblib"   # English
+    }
     
     telemetry = TelemetrySystem()
     estigia = EstigiaCore(model_name=model) # <-- Pon tu modelo de ollama aquí
@@ -303,6 +344,9 @@ def main():
             break
             
         ui = estigia.set_language(lang_choice)
+
+        selected_model_path = MODEL_PATHS.get(lang_choice, MODEL_PATHS["3"])
+        telemetry.load_model(selected_model_path)
         
         print(ui["ui_ok"])
         print(ui["ui_stop"] + "\n" + "-"*40)

@@ -116,6 +116,9 @@ EstigiaChatbot/
 ├── requirements.txt             # Dependencias de Python
 ├── Models/
 │   └── telemetry_classifier.joblib  # Modelo entrenado para detectar intenciones
+│   └── modelo-PLUTON_UPV_es_svm.joblib  # Modelo entrenado para clasificar preguntas de telemetría en español
+│   └── modelo-PLUTON_UPV_ca_svm.joblib  # Modelo entrenado para clasificar preguntas de telemetría en catalán
+│   └── modelo-PLUTON_UPV_en_svm.joblib  # Modelo entrenado para clasificar preguntas de telemetría en inglés
 └── README.md                    # Documentación del proyecto
 ```
 
