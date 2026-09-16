@@ -7,4 +7,5 @@ sentencepiece
 sacremoses
 lingua==4.15.0
 lingua-language-detector==1.1.0
-ollama==0.5.1streamlit
+ollama==0.5.1
+streamlit
